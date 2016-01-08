@@ -12,6 +12,8 @@ const ModalDialog = imports.ui.modalDialog;
 const Clutter = imports.gi.Clutter;
 const CinnamonEntry = imports.ui.cinnamonEntry;
 
+const Sjcl = imports.applet.sjcl;
+
 function MyMenu(launcher, orientation) {
     this._init(launcher, orientation);
 }
@@ -26,31 +28,68 @@ MyMenu.prototype = {
     }
 };
 
-function PasswordDialog() {
+function SshEntryDialog() {
     this._init();
 }
 
-PasswordDialog.prototype = {
+SshEntryDialog.prototype = {
 	__proto__: ModalDialog.ModalDialog.prototype,
     _init : function() {
     	ModalDialog.ModalDialog.prototype._init.call(this, {});
 
-		let label = new St.Label({ text: _("Please enter password:") });
+		let hostLabel = new St.Label({ text: _("Please enter Host:") });
 
-        this.contentLayout.add(label, { y_align: St.Align.START });
+        this.contentLayout.add(hostLabel, { y_align: St.Align.START });
 
-    	let entry = new St.Entry();
-        CinnamonEntry.addContextMenu(entry);
+    	let hostInput = new St.Entry();
+        CinnamonEntry.addContextMenu(hostInput);
 
-        entry.label_actor = label;
+        hostInput.label_actor = hostLabel;
 
-        this._entryText = entry.clutter_text;
-        this.contentLayout.add(entry, { y_align: St.Align.START });
-        this.setInitialKeyFocus(this._entryText);
+        this.hostInput = hostInput.clutter_text;
+        this.contentLayout.add(hostInput, { y_align: St.Align.START });
+
+		let hostNameLabel = new St.Label({ text: _("Please enter HostName (URL):") });
+
+        this.contentLayout.add(hostNameLabel, { y_align: St.Align.START });
+
+    	let hostNameInput = new St.Entry();
+        CinnamonEntry.addContextMenu(hostNameInput);
+
+        hostNameInput.label_actor = hostNameLabel;
+
+        this.hostNameInput = hostNameInput.clutter_text;
+        this.contentLayout.add(hostNameInput, { y_align: St.Align.START });
+
+        let userLabel = new St.Label({ text: _("Please enter User:") });
+
+        this.contentLayout.add(userLabel, { y_align: St.Align.START });
+
+    	let userInput = new St.Entry();
+        CinnamonEntry.addContextMenu(userInput);
+
+        userInput.label_actor = userLabel;
+
+        this.userInput = userInput.clutter_text;
+        this.contentLayout.add(userInput, { y_align: St.Align.START });
+
+        let encryptionKeyLabel = new St.Label({ text: _("Please enter encryption key:") });
+
+        this.contentLayout.add(encryptionKeyLabel, { y_align: St.Align.START });
+
+    	let encryptionKeyInput = new St.Entry();
+        CinnamonEntry.addContextMenu(encryptionKeyInput);
+
+        encryptionKeyInput.label_actor = encryptionKeyLabel;
+
+        this.encryptionKeyInput = encryptionKeyInput.clutter_text;
+        this.contentLayout.add(encryptionKeyInput, { y_align: St.Align.START });
+
+        this.setInitialKeyFocus(this.hostInput);
     },
 
-    getEntryText: function() {
-    	return this._entryText.get_text();
+    getHost: function() {
+    	return this.hostInput.get_text();
     },
 };
 
@@ -59,8 +98,6 @@ function MyApplet(metadata, orientation) {
 };
 
 MyApplet.prototype = {
-
-	
 
 	__proto__: Applet.IconApplet.prototype,
 
@@ -136,7 +173,7 @@ MyApplet.prototype = {
 	},
 
 	encryptSshPassword: function() {
-		let dialog = new PasswordDialog();
+		let dialog = new SshEntryDialog();
 		let me = this;
 		dialog.setButtons([
 		    {
@@ -149,7 +186,18 @@ MyApplet.prototype = {
 		    {
 		        label: _("OK"),
 		        action: Lang.bind(me, function() {
-		        	let password = dialog.getEntryText();
+		        	let p = { 
+		        		adata: '',
+				        iter: 1000,
+				        mode: 'ccm',
+				        ts: 128,
+				        ks: 256
+				    };
+				    p.iv = Sjcl.sjcl.random.randomWords(4, 0);
+				    p.salt = Sjcl.sjcl.random.randomWords(2, 0);
+
+		        	let password = dialog.getHost();
+		        	password = Sjcl.sjcl.encrypt('Jennyfer', password, p, {}).replace(/,/g,",\n");
 		        	let encodedPassword = GLib.base64_encode(password);
 		        	me.actionAfterTest(encodedPassword);
 		        	dialog.close();
